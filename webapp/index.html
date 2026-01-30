@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Змейка — Telegram Mini App</title>
+
+  <!-- Telegram Mini App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    :root { --bg:#0b0f14; --panel:#121826; --text:#e7eefc; --muted:#9fb0cc; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 50% 20%, #16213a, var(--bg));
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 14px;
+    }
+    .wrap {
+      width: min(560px, 100%);
+      background: rgba(18, 24, 38, .75);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    header {
+      display:flex; align-items:center; justify-content:space-between;
+      gap: 10px; margin-bottom: 10px;
+    }
+    .title { font-weight: 700; letter-spacing: .3px; display:flex; gap:8px; align-items:center;}
+    .stats { display:flex; gap: 12px; color: var(--muted); font-size: 14px; flex-wrap: wrap;}
+    canvas {
+      width: 100%;
+      height: auto;
+      background: #05070b;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.06);
+      image-rendering: pixelated;
+      touch-action: none;
+    }
+    .help {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      display:flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .kbd {
+      border: 1px solid rgba(255,255,255,.14);
+      border-bottom-color: rgba(255,255,255,.08);
+      background: rgba(255,255,255,.06);
+      padding: 2px 7px;
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 12px;
+      white-space: nowrap;
+      margin-right: 4px;
+    }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    button {
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:active { transform: translateY(1px); }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">🐍 Змейка <span style="opacity:.7;font-weight:600;font-size:12px">Mini App</span></div>
+      <div class="stats">
+        <div>Счёт: <span id="score">0</span></div>
+        <div>Рекорд (local): <span id="best">0</span></div>
+        <div>Юзер: <span id="user">—</span></div>
+      </div>
+    </header>
+
+    <canvas id="game" width="520" height="520" aria-label="Snake game"></canvas>
+
+    <div class="help">
+      <div class="row">
+        Управление: <span class="kbd">←</span><span class="kbd">↑</span><span class="kbd">→</span><span class="kbd">↓</span>
+        • Пауза: <span class="kbd">Space</span> • Рестарт: <span class="kbd">R</span>
+      </div>
+
+      <div class="row">
+        <button id="pauseBtn">⏸ Пауза</button>
+        <button id="restartBtn">🔁 Рестарт</button>
+        <span id="status">Игра началась</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const statusEl = document.getElementById('status');
+  const userEl  = document.getElementById('user');
+
+  const pauseBtn = document.getElementById('pauseBtn');
+  const restartBtn = document.getElementById('restartBtn');
+
+  // Telegram WebApp integration
+  const tg = window.Telegram?.WebApp;
+
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    // Покажем имя (если есть)
+    const u = tg.initDataUnsafe?.user;
+    if (u) userEl.textContent = u.username ? '@' + u.username : (u.first_name || 'user');
+
+    // Под тему Telegram (мягко)
+    const bg = tg.themeParams?.bg_color;
+    if (bg) document.body.style.background = bg;
+
+    // Скрываем MainButton по умолчанию
+    tg.MainButton.hide();
+  }
+
+  // Grid settings
+  const cells = 26;
+  const size = 20;
+  canvas.width = cells * size;
+  canvas.height = cells * size;
+
+  // Speed
+  const baseSpeed = 9;
+  let speed = baseSpeed;
+  let tickMs = 1000 / speed;
+
+  // State
+  let snake, dir, nextDir, food, score, best, paused, alive;
+
+  best = Number(localStorage.getItem('snake_best') || 0);
+  bestEl.textContent = best;
+
+  function randCell() {
+    return { x: Math.floor(Math.random() * cells), y: Math.floor(Math.random() * cells) };
+  }
+  function equal(a, b) { return a.x === b.x && a.y === b.y; }
+
+  function placeFood() {
+    let p;
+    do { p = randCell(); } while (snake.some(s => equal(s, p)));
+    food = p;
+  }
+
+  function setBestIfNeeded() {
+    if (score > best) {
+      best = score;
+      localStorage.setItem('snake_best', String(best));
+      bestEl.textContent = best;
+    }
+  }
+
+  function clampWrap(pos) {
+    if (pos.x < 0) pos.x = cells - 1;
+    if (pos.x >= cells) pos.x = 0;
+    if (pos.y < 0) pos.y = cells - 1;
+    if (pos.y >= cells) pos.y = 0;
+    return pos;
+  }
+
+  function showTelegramShare(score) {
+    if (!tg) return;
+
+    tg.HapticFeedback?.notificationOccurred('error');
+
+    // MainButton: отправим score боту через sendData
+    tg.MainButton.setText(`🏁 Отправить рекорд: ${score}`);
+    tg.MainButton.show();
+
+    // Чтобы не навешивать много обработчиков — снимем прошлый, если был
+    tg.MainButton.onClick(() => {
+      const payload = {
+        type: "score",
+        score,
+        ts: Date.now()
+      };
+      tg.sendData(JSON.stringify(payload));
+      tg.HapticFeedback?.notificationOccurred('success');
+      statusEl.textContent = "✅ Рекорд отправлен боту";
+      // можно спрятать кнопку после отправки
+      tg.MainButton.hide();
+    });
+  }
+
+  function hideTelegramMainButton() {
+    tg?.MainButton?.hide();
+  }
+
+  function reset() {
+    snake = [
+      { x: Math.floor(cells/2), y: Math.floor(cells/2) },
+      { x: Math.floor(cells/2) - 1, y: Math.floor(cells/2) },
+      { x: Math.floor(cells/2) - 2, y: Math.floor(cells/2) }
+    ];
+    dir = { x: 1, y: 0 };
+    nextDir = { ...dir };
+    score = 0;
+    speed = baseSpeed;
+    tickMs = 1000 / speed;
+    paused = false;
+    alive = true;
+    placeFood();
+    scoreEl.textContent = score;
+    statusEl.textContent = 'Игра началась';
+    pauseBtn.textContent = "⏸ Пауза";
+    hideTelegramMainButton();
+  }
+
+  function step() {
+    if (!alive || paused) return;
+
+    dir = nextDir;
+
+    const head = snake[0];
+    const newHead = clampWrap({ x: head.x + dir.x, y: head.y + dir.y });
+
+    if (snake.some((s, i) => i !== 0 && equal(s, newHead))) {
+      alive = false;
+      setBestIfNeeded();
+      statusEl.textContent = '💥 Проиграл. Нажми R для рестарта';
+      showTelegramShare(score);
+      return;
+    }
+
+    snake.unshift(newHead);
+
+    if (equal(newHead, food)) {
+      score++;
+      scoreEl.textContent = score;
+
+      tg?.HapticFeedback?.impactOccurred('light');
+
+      if (score % 5 === 0) {
+        speed = Math.min(18, speed + 1);
+        tickMs = 1000 / speed;
+      }
+      placeFood();
+    } else {
+      snake.pop();
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // grid
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = '#2a3550';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= cells; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * size + 0.5, 0);
+      ctx.lineTo(i * size + 0.5, canvas.height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, i * size + 0.5);
+      ctx.lineTo(canvas.width, i * size + 0.5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // food
+    ctx.fillStyle = '#ff4d6d';
+    ctx.fillRect(food.x * size + 3, food.y * size + 3, size - 6, size - 6);
+
+    // snake
+    for (let i = snake.length - 1; i >= 0; i--) {
+      const s = snake[i];
+      const isHead = i === 0;
+
+      ctx.fillStyle = isHead ? '#7cffb2' : '#32d583';
+      ctx.fillRect(s.x * size + 2, s.y * size + 2, size - 4, size - 4);
+
+      if (isHead) {
+        ctx.fillStyle = '#06110b';
+        const ex = s.x * size, ey = s.y * size;
+        const gx = dir.x === 1 ? 13 : dir.x === -1 ? 7 : 10;
+        const gy = dir.y === 1 ? 13 : dir.y === -1 ? 7 : 10;
+        ctx.beginPath(); ctx.arc(ex + gx, ey + gy, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex + (20 - gx), ey + (20 - gy), 2.2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    if (paused && alive) {
+      ctx.fillStyle = 'rgba(0,0,0,.55)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Пауза', canvas.width/2, canvas.height/2);
+      ctx.font = '14px system-ui, sans-serif';
+      ctx.fillText('Нажми Space, чтобы продолжить', canvas.width/2, canvas.height/2 + 24);
+      ctx.textAlign = 'start';
+    }
+  }
+
+  // Controls: keyboard
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+
+    if (k === ' ' || k === 'Spacebar') {
+      paused = !paused;
+      pauseBtn.textContent = paused ? "▶️ Продолжить" : "⏸ Пауза";
+      statusEl.textContent = paused ? '⏸ Пауза' : (alive ? '▶️ Игра продолжается' : statusEl.textContent);
+      return;
+    }
+
+    if (k.toLowerCase() === 'r') {
+      reset();
+      return;
+    }
+
+    const map = {
+      ArrowUp:    { x: 0, y: -1 },
+      ArrowDown:  { x: 0, y:  1 },
+      ArrowLeft:  { x: -1, y: 0 },
+      ArrowRight: { x:  1, y: 0 }
+    };
+    if (!map[k]) return;
+
+    const nd = map[k];
+    if (nd.x === -dir.x && nd.y === -dir.y) return;
+    nextDir = nd;
+  });
+
+  // Controls: buttons
+  pauseBtn.addEventListener('click', () => {
+    paused = !paused;
+    pauseBtn.textContent = paused ? "▶️ Продолжить" : "⏸ Пауза";
+    statusEl.textContent = paused ? '⏸ Пауза' : (alive ? '▶️ Игра продолжается' : statusEl.textContent);
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+  restartBtn.addEventListener('click', () => {
+    reset();
+    tg?.HapticFeedback?.impactOccurred('medium');
+  });
+
+  // Loop
+  let lastTick = performance.now();
+  function loop(now) {
+    const dt = now - lastTick;
+    if (dt >= tickMs) {
+      lastTick = now - (dt % tickMs);
+      step();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
