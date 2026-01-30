@@ -2,215 +2,733 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Змейка — Telegram Mini App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Snake — Telegram Mini App</title>
 
-  <!-- Telegram Mini App SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
-    :root { --bg:#0b0f14; --panel:#121826; --text:#e7eefc; --muted:#9fb0cc; }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: radial-gradient(1200px 600px at 50% 20%, #16213a, var(--bg));
-      color: var(--text);
-      display: grid;
-      place-items: center;
-      min-height: 100vh;
-      padding: 14px;
+    :root{
+      --bg:#070a11;
+      --panel: rgba(18, 24, 38, .78);
+      --panel2: rgba(255,255,255,.06);
+      --stroke: rgba(255,255,255,.10);
+      --text:#e9f1ff;
+      --muted:#9fb0cc;
+      --good:#32d583;
+      --good2:#7cffb2;
+      --bad:#ff4d6d;
+      --warn:#ffcc00;
+      --shadow: 0 14px 40px rgba(0,0,0,.45);
+      --r:16px;
     }
-    .wrap {
-      width: min(560px, 100%);
-      background: rgba(18, 24, 38, .75);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 14px;
-      padding: 14px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.35);
-    }
-    header {
-      display:flex; align-items:center; justify-content:space-between;
-      gap: 10px; margin-bottom: 10px;
-    }
-    .title { font-weight: 700; letter-spacing: .3px; display:flex; gap:8px; align-items:center;}
-    .stats { display:flex; gap: 12px; color: var(--muted); font-size: 14px; flex-wrap: wrap;}
-    canvas {
-      width: 100%;
-      height: auto;
-      background: #05070b;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,.06);
-      image-rendering: pixelated;
+
+    *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+    html, body{ height:100%; }
+    html, body{
+      overscroll-behavior: none;
       touch-action: none;
     }
-    .help {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 50% 10%, #18234a, var(--bg));
+      padding:
+        max(12px, env(safe-area-inset-top))
+        max(12px, env(safe-area-inset-right))
+        max(12px, env(safe-area-inset-bottom))
+        max(12px, env(safe-area-inset-left));
+      display:grid;
+      place-items:center;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+
+    .app{
+      width:min(760px, 100%);
+      display:grid;
+      gap:12px;
+    }
+
+    .card{
+      background: var(--panel);
+      border:1px solid var(--stroke);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .topbar{
       display:flex;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 12px 10px;
     }
-    .kbd {
-      border: 1px solid rgba(255,255,255,.14);
-      border-bottom-color: rgba(255,255,255,.08);
-      background: rgba(255,255,255,.06);
-      padding: 2px 7px;
-      border-radius: 7px;
-      color: var(--text);
-      font-size: 12px;
-      white-space: nowrap;
-      margin-right: 4px;
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      font-weight:800;
+      letter-spacing:.2px;
     }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    button {
-      border: 1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06);
+    .pill{
+      font-size:12px;
+      padding:4px 8px;
+      border-radius:999px;
+      background: var(--panel2);
+      border:1px solid rgba(255,255,255,.09);
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .stats{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      align-items:center;
+      color: var(--muted);
+      font-size:13px;
+    }
+    .stat b{ color: var(--text); font-weight:800; }
+    .sep{ opacity:.35; padding:0 2px; }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 320px;
+      gap:12px;
+      padding: 0 12px 12px;
+    }
+
+    .gameWrap{
+      background: rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.06);
+      border-radius: 14px;
+      padding: 10px;
+      display:grid;
+      gap:10px;
+    }
+
+    canvas{
+      width:100%;
+      height:auto;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.08);
+      background:#04060b;
+      image-rendering: pixelated;
+      touch-action:none;
+    }
+
+    .hudRow{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      color: var(--muted);
+      font-size:13px;
+    }
+
+    .btnRow{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:space-between;
+      align-items:center;
+    }
+
+    .btns{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    button{
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.07);
       color: var(--text);
-      border-radius: 10px;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight:800;
+      cursor:pointer;
+      transition: transform .05s ease;
+      min-height: 42px;
+    }
+    button:active{ transform: translateY(1px) scale(.99); }
+    button.primary{
+      background: rgba(50, 213, 131, .14);
+      border-color: rgba(50, 213, 131, .35);
+    }
+    button.danger{
+      background: rgba(255, 77, 109, .14);
+      border-color: rgba(255, 77, 109, .35);
+    }
+    button.ghost{
+      background: rgba(255,255,255,.04);
+      border-color: rgba(255,255,255,.10);
+    }
+
+    .panel{
+      padding: 12px;
+      display:grid;
+      gap:12px;
+    }
+
+    .sectionTitle{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:6px;
+    }
+    .sectionTitle h3{
+      margin:0;
+      font-size:14px;
+      letter-spacing:.2px;
+    }
+    .sectionTitle .hint{
+      font-size:12px;
+      color: var(--muted);
+    }
+
+    .box{
+      background: rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      padding: 10px;
+      display:grid;
+      gap:10px;
+    }
+
+    .row{
+      display:grid;
+      gap:8px;
+    }
+
+    .chips{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .chip{
       padding: 8px 10px;
-      font-weight: 600;
-      cursor: pointer;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-weight:800;
+      font-size:13px;
+      cursor:pointer;
     }
-    button:active { transform: translateY(1px); }
+    .chip[aria-pressed="true"]{
+      background: rgba(124,255,178,.12);
+      border-color: rgba(124,255,178,.30);
+    }
+
+    .kv{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:8px;
+      align-items:center;
+      color: var(--muted);
+      font-size:13px;
+    }
+    .kv b{ color: var(--text); }
+
+    .progress{
+      height:10px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: 999px;
+      overflow:hidden;
+    }
+    .bar{
+      height:100%;
+      width: 0%;
+      background: rgba(124,255,178,.25);
+    }
+
+    .notice{
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+
+    .touchControls{
+      display:none;
+      gap:10px;
+      justify-content:center;
+      align-items:center;
+      margin-top: 6px;
+    }
+    .dpad{
+      display:grid;
+      gap:8px;
+      place-items:center;
+    }
+    .dpad .row2{
+      display:flex;
+      gap:8px;
+      justify-content:center;
+    }
+    .ctl{
+      width: 78px;
+      height: 56px;
+      border-radius: 14px;
+      font-size: 22px;
+      line-height:1;
+    }
+    .tapHint{
+      font-size:12px;
+      color: var(--muted);
+      text-align:center;
+      margin-top: 2px;
+    }
+
+    .overlay{
+      position: fixed;
+      inset: 0;
+      display:none;
+      place-items:center;
+      padding: 18px;
+      background: rgba(0,0,0,.65);
+      z-index: 999;
+    }
+    .overlay.show{ display:grid; }
+    .modal{
+      width:min(520px, 100%);
+      background: rgba(18,24,38,.92);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 14px;
+      display:grid;
+      gap: 12px;
+    }
+    .modal h2{
+      margin:0;
+      font-size:18px;
+    }
+    .modal .actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    @media (pointer: coarse), (max-width: 820px){
+      .touchControls{ display:flex; flex-direction:column; }
+      button{ padding: 12px 14px; }
+    }
+
+    @media (max-width: 420px){
+      .stats .sep{ display:none; }
+      .pill{ display:none; }
+    }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <header>
-      <div class="title">🐍 Змейка <span style="opacity:.7;font-weight:600;font-size:12px">Mini App</span></div>
-      <div class="stats">
-        <div>Счёт: <span id="score">0</span></div>
-        <div>Рекорд (local): <span id="best">0</span></div>
-        <div>Юзер: <span id="user">—</span></div>
+  <div class="app">
+    <div class="card">
+      <div class="topbar">
+        <div class="brand">
+          <span style="font-size:18px">🐍</span>
+          <span>Snake</span>
+          <span class="pill" id="platformPill">web</span>
+        </div>
+        <div class="stats">
+          <span class="stat">Счёт: <b id="score">0</b></span>
+          <span class="sep">•</span>
+          <span class="stat">Лучший (local): <b id="best">0</b></span>
+          <span class="sep">•</span>
+          <span class="stat">Уровень: <b id="level">1</b></span>
+          <span class="sep">•</span>
+          <span class="stat">Скорость: <b id="speed">1.0×</b></span>
+          <span class="sep">•</span>
+          <span class="stat">Игрок: <b id="user">—</b></span>
+        </div>
       </div>
-    </header>
 
-    <canvas id="game" width="520" height="520" aria-label="Snake game"></canvas>
+      <div class="grid">
+        <!-- LEFT: GAME -->
+        <div class="gameWrap">
+          <canvas id="game" width="520" height="520" aria-label="Snake game"></canvas>
 
-    <div class="help">
-      <div class="row">
-        Управление: <span class="kbd">←</span><span class="kbd">↑</span><span class="kbd">→</span><span class="kbd">↓</span>
-        • Пауза: <span class="kbd">Space</span> • Рестарт: <span class="kbd">R</span>
+          <div class="hudRow">
+            <div id="status">Готов?</div>
+            <div id="mission">Миссия: собери 5 яблок</div>
+          </div>
+
+          <div class="btnRow">
+            <div class="btns">
+              <button id="playBtn" class="primary">▶️ Играть</button>
+              <button id="pauseBtn" class="ghost">⏸ Пауза</button>
+              <button id="restartBtn" class="danger">🔁 Заново</button>
+            </div>
+            <div class="btns">
+              <button id="soundBtn" class="ghost">🔊 Звук: Вкл</button>
+              <button id="helpBtn" class="ghost">❔</button>
+            </div>
+          </div>
+
+          <!-- Mobile controls -->
+          <div class="touchControls" aria-label="Touch controls">
+            <div class="dpad">
+              <button class="ctl" data-dir="up">⬆️</button>
+              <div class="row2">
+                <button class="ctl" data-dir="left">⬅️</button>
+                <button class="ctl" data-dir="down">⬇️</button>
+                <button class="ctl" data-dir="right">➡️</button>
+              </div>
+              <div class="tapHint">Свайп по полю меняет направление • тап — пауза</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: UI / SETTINGS -->
+        <div class="panel">
+          <div class="box">
+            <div class="sectionTitle">
+              <h3>Режим</h3>
+              <span class="hint">влияет на скорость и “опасности”</span>
+            </div>
+            <div class="chips" id="modeChips">
+              <button class="chip" data-mode="easy" aria-pressed="true">😌 Easy</button>
+              <button class="chip" data-mode="normal" aria-pressed="false">😈 Normal</button>
+              <button class="chip" data-mode="hard" aria-pressed="false">💀 Hard</button>
+              <button class="chip" data-mode="zen" aria-pressed="false">🧘 Zen</button>
+            </div>
+            <div class="notice">
+              Easy/Normal/Hard: ускорение + уровни + ловушки.<br/>
+              Zen: спокойно, без ловушек, чисто на удовольствие.
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="sectionTitle">
+              <h3>Прогресс уровня</h3>
+              <span class="hint" id="lvlHint">0 / 5</span>
+            </div>
+            <div class="progress"><div class="bar" id="lvlBar"></div></div>
+            <div class="kv">
+              <span>Нужно на уровень</span>
+              <b id="needForLevel">5</b>
+            </div>
+            <div class="kv">
+              <span>Ловушки</span>
+              <b id="hazardsInfo">0</b>
+            </div>
+          </div>
+
+          <div class="box">
+            <div class="sectionTitle">
+              <h3>Скин</h3>
+              <span class="hint">косметика, но приятно</span>
+            </div>
+            <div class="chips" id="skinChips">
+              <button class="chip" data-skin="mint" aria-pressed="true">🌿 Mint</button>
+              <button class="chip" data-skin="neon" aria-pressed="false">⚡ Neon</button>
+              <button class="chip" data-skin="sunset" aria-pressed="false">🌅 Sunset</button>
+              <button class="chip" data-skin="mono" aria-pressed="false">⚫ Mono</button>
+            </div>
+            <div class="notice">Сохраняется локально. В Telegram выглядит особенно кайфово.</div>
+          </div>
+
+          <div class="box">
+            <div class="sectionTitle">
+              <h3>Коротко</h3>
+              <span class="hint">управление</span>
+            </div>
+            <div class="notice">
+              ПК: стрелки, Space — пауза, R — рестарт.<br/>
+              Телефон: свайпы по полю или D-pad кнопки.<br/>
+              При сворачивании — автопауза.
+            </div>
+          </div>
+        </div>
       </div>
+    </div>
+  </div>
 
-      <div class="row">
-        <button id="pauseBtn">⏸ Пауза</button>
-        <button id="restartBtn">🔁 Рестарт</button>
-        <span id="status">Игра началась</span>
+  <!-- Help modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2>Как играть</h2>
+      <div class="notice" style="font-size:13px;">
+        • Ешь яблоки — растёшь и набираешь очки.<br/>
+        • Каждые <b>5 яблок</b> — новый уровень: скорость растёт, в сложных режимах появляются ловушки.<br/>
+        • В Hard ловушки появляются чаще, в Zen их нет.<br/><br/>
+        Telegram: после проигрыша появится кнопка отправки рекорда боту.
+      </div>
+      <div class="actions">
+        <button id="closeHelp" class="primary">Понял ✅</button>
       </div>
     </div>
   </div>
 
 <script>
 (() => {
+  // ===== Telegram integration =====
+  const tg = window.Telegram?.WebApp || null;
+
+  // ===== DOM =====
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
   const scoreEl = document.getElementById('score');
-  const bestEl = document.getElementById('best');
-  const statusEl = document.getElementById('status');
+  const bestEl  = document.getElementById('best');
+  const levelEl = document.getElementById('level');
+  const speedEl = document.getElementById('speed');
   const userEl  = document.getElementById('user');
+  const statusEl = document.getElementById('status');
+  const missionEl = document.getElementById('mission');
 
+  const playBtn = document.getElementById('playBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const restartBtn = document.getElementById('restartBtn');
+  const soundBtn = document.getElementById('soundBtn');
+  const helpBtn = document.getElementById('helpBtn');
 
-  // Telegram WebApp integration
-  const tg = window.Telegram?.WebApp;
+  const overlay = document.getElementById('overlay');
+  const closeHelp = document.getElementById('closeHelp');
 
+  const modeChips = document.getElementById('modeChips');
+  const skinChips = document.getElementById('skinChips');
+
+  const lvlHint = document.getElementById('lvlHint');
+  const lvlBar = document.getElementById('lvlBar');
+  const needForLevelEl = document.getElementById('needForLevel');
+  const hazardsInfoEl = document.getElementById('hazardsInfo');
+  const platformPill = document.getElementById('platformPill');
+
+  // ===== Mobile: prevent scroll/zoom =====
+  window.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+
+  // ===== Settings (persist) =====
+  const LS = {
+    best: 'snake_best_v2',
+    mode: 'snake_mode_v2',
+    skin: 'snake_skin_v2',
+    sound:'snake_sound_v2'
+  };
+
+  let mode = localStorage.getItem(LS.mode) || 'easy';
+  let skin = localStorage.getItem(LS.skin) || 'mint';
+  let soundOn = (localStorage.getItem(LS.sound) ?? '1') === '1';
+
+  function setSound(val){
+    soundOn = !!val;
+    localStorage.setItem(LS.sound, soundOn ? '1':'0');
+    soundBtn.textContent = soundOn ? '🔊 Звук: Вкл' : '🔇 Звук: Выкл';
+  }
+  setSound(soundOn);
+
+  // ===== Tiny sound (no external files) =====
+  let audioCtx = null;
+  function beep(freq=520, dur=0.06, type='sine', vol=0.06){
+    if (!soundOn) return;
+    try{
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.value = vol;
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start();
+      o.stop(audioCtx.currentTime + dur);
+    }catch(e){}
+  }
+
+  // ===== Telegram init =====
   if (tg) {
+    platformPill.textContent = 'telegram';
     tg.ready();
     tg.expand();
-    // Покажем имя (если есть)
+    tg.disableVerticalSwipes?.();
+    tg.MainButton.hide();
+
     const u = tg.initDataUnsafe?.user;
     if (u) userEl.textContent = u.username ? '@' + u.username : (u.first_name || 'user');
 
-    // Под тему Telegram (мягко)
+    // Theme adaptation (soft)
     const bg = tg.themeParams?.bg_color;
     if (bg) document.body.style.background = bg;
-
-    // Скрываем MainButton по умолчанию
-    tg.MainButton.hide();
+  } else {
+    platformPill.textContent = 'web';
   }
 
-  // Grid settings
+  // ===== Game config =====
   const cells = 26;
   const size = 20;
   canvas.width = cells * size;
   canvas.height = cells * size;
 
-  // Speed
-  const baseSpeed = 9;
-  let speed = baseSpeed;
-  let tickMs = 1000 / speed;
-
-  // State
-  let snake, dir, nextDir, food, score, best, paused, alive;
-
-  best = Number(localStorage.getItem('snake_best') || 0);
-  bestEl.textContent = best;
-
-  function randCell() {
-    return { x: Math.floor(Math.random() * cells), y: Math.floor(Math.random() * cells) };
-  }
-  function equal(a, b) { return a.x === b.x && a.y === b.y; }
-
-  function placeFood() {
-    let p;
-    do { p = randCell(); } while (snake.some(s => equal(s, p)));
-    food = p;
-  }
-
-  function setBestIfNeeded() {
-    if (score > best) {
-      best = score;
-      localStorage.setItem('snake_best', String(best));
-      bestEl.textContent = best;
-    }
-  }
-
-  function clampWrap(pos) {
+  function clampWrap(pos){
     if (pos.x < 0) pos.x = cells - 1;
     if (pos.x >= cells) pos.x = 0;
     if (pos.y < 0) pos.y = cells - 1;
     if (pos.y >= cells) pos.y = 0;
     return pos;
   }
+  const eq = (a,b) => a.x===b.x && a.y===b.y;
+  const rnd = () => ({ x: Math.floor(Math.random()*cells), y: Math.floor(Math.random()*cells) });
 
-  function showTelegramShare(score) {
+  // Skins (simple palettes)
+  const skins = {
+    mint:   { head:'#7cffb2', body:'#32d583', eye:'#06110b', grid:'#2a3550' },
+    neon:   { head:'#66ccff', body:'#8a5cff', eye:'#0b0f14', grid:'#27314a' },
+    sunset: { head:'#ffcc66', body:'#ff6b8b', eye:'#1a0c10', grid:'#2a3550' },
+    mono:   { head:'#f2f2f2', body:'#a8a8a8', eye:'#111', grid:'#2a2a2a' },
+  };
+
+  // Modes
+  const modes = {
+    easy:   { baseSpeed: 8,  speedCap: 15, hazards: true,  hazardRate: 0.08, levelNeedBase: 5 },
+    normal: { baseSpeed: 9,  speedCap: 18, hazards: true,  hazardRate: 0.12, levelNeedBase: 6 },
+    hard:   { baseSpeed: 10, speedCap: 22, hazards: true,  hazardRate: 0.18, levelNeedBase: 7 },
+    zen:    { baseSpeed: 8,  speedCap: 12, hazards: false, hazardRate: 0.0,  levelNeedBase: 5 },
+  };
+
+  // ===== State =====
+  let snake, dir, nextDir, food, score, best;
+  let paused = true;
+  let alive = true;
+  let level = 1;
+  let applesThisLevel = 0;
+  let needForLevel = 5;
+  let speed = 1.0;
+  let tickMs = 1000 / 9;
+  let hazards = []; // traps
+  let startedOnce = false;
+
+  best = Number(localStorage.getItem(LS.best) || 0);
+  bestEl.textContent = best;
+
+  function placeFood(){
+    let p;
+    do { p = rnd(); }
+    while (snake.some(s => eq(s,p)) || hazards.some(h => eq(h,p)));
+    food = p;
+  }
+
+  function placeHazard(){
+    // place a trap away from head and not on food
+    let p;
+    const head = snake[0];
+    let tries = 0;
+    do{
+      p = rnd();
+      tries++;
+      if (tries > 400) return;
+    }while(
+      snake.some(s => eq(s,p)) ||
+      eq(food,p) ||
+      hazards.some(h => eq(h,p)) ||
+      (Math.abs(p.x - head.x) + Math.abs(p.y - head.y) < 6)
+    );
+    hazards.push(p);
+  }
+
+  function syncModeUI(){
+    [...modeChips.querySelectorAll('.chip')].forEach(btn => {
+      const on = btn.dataset.mode === mode;
+      btn.setAttribute('aria-pressed', on ? 'true':'false');
+    });
+  }
+  function syncSkinUI(){
+    [...skinChips.querySelectorAll('.chip')].forEach(btn => {
+      const on = btn.dataset.skin === skin;
+      btn.setAttribute('aria-pressed', on ? 'true':'false');
+    });
+  }
+
+  function setMode(m){
+    mode = m;
+    localStorage.setItem(LS.mode, mode);
+    syncModeUI();
+    applyMode();
+    // мягкий ребаланс во время игры: перезапускаем уровеньные параметры, не убивая прогресс
+    updateHUD();
+  }
+
+  function setSkin(s){
+    skin = s;
+    localStorage.setItem(LS.skin, skin);
+    syncSkinUI();
+    draw(); // repaint
+  }
+
+  function applyMode(){
+    const cfg = modes[mode] || modes.easy;
+    // Speed depends on level
+    const base = cfg.baseSpeed;
+    const cap = cfg.speedCap;
+    const computed = Math.min(cap, base + Math.floor((level-1) * 0.9));
+    tickMs = 1000 / computed;
+    speed = computed / base;
+
+    // Level requirement scales
+    needForLevel = cfg.levelNeedBase + Math.floor((level-1) * 0.6);
+
+    // Hazards info
+    hazardsInfoEl.textContent = cfg.hazards ? String(hazards.length) : "0";
+    needForLevelEl.textContent = String(needForLevel);
+    speedEl.textContent = speed.toFixed(1) + "×";
+
+    // Mission text
+    missionEl.textContent = `Миссия: собери ${needForLevel} яблок`;
+  }
+
+  function setDirection(nd){
+    if (!alive) return;
+    // Prevent 180° turn
+    if (nd.x === -dir.x && nd.y === -dir.y) return;
+    nextDir = nd;
+  }
+
+  function setBestIfNeeded(){
+    if (score > best){
+      best = score;
+      localStorage.setItem(LS.best, String(best));
+      bestEl.textContent = best;
+    }
+  }
+
+  function setPaused(val){
+    paused = (val ?? !paused);
+    pauseBtn.textContent = paused ? "▶️ Продолжить" : "⏸ Пауза";
+    statusEl.textContent = paused ? "⏸ Пауза" : (alive ? "🔥 Поехали!" : statusEl.textContent);
+  }
+
+  function showSendScore(score){
     if (!tg) return;
-
-    tg.HapticFeedback?.notificationOccurred('error');
-
-    // MainButton: отправим score боту через sendData
     tg.MainButton.setText(`🏁 Отправить рекорд: ${score}`);
     tg.MainButton.show();
-
-    // Чтобы не навешивать много обработчиков — снимем прошлый, если был
     tg.MainButton.onClick(() => {
-      const payload = {
-        type: "score",
-        score,
-        ts: Date.now()
-      };
-      tg.sendData(JSON.stringify(payload));
+      tg.sendData(JSON.stringify({ type:"score", score, ts: Date.now(), mode, level }));
       tg.HapticFeedback?.notificationOccurred('success');
       statusEl.textContent = "✅ Рекорд отправлен боту";
-      // можно спрятать кнопку после отправки
       tg.MainButton.hide();
     });
   }
 
-  function hideTelegramMainButton() {
-    tg?.MainButton?.hide();
-  }
-
-  function reset() {
+  function reset(full=true){
     snake = [
       { x: Math.floor(cells/2), y: Math.floor(cells/2) },
       { x: Math.floor(cells/2) - 1, y: Math.floor(cells/2) },
@@ -218,161 +736,362 @@
     ];
     dir = { x: 1, y: 0 };
     nextDir = { ...dir };
+    food = rnd();
     score = 0;
-    speed = baseSpeed;
-    tickMs = 1000 / speed;
-    paused = false;
     alive = true;
+    hazards = [];
+    if (full){
+      level = 1;
+      applesThisLevel = 0;
+    } else {
+      applesThisLevel = 0;
+    }
     placeFood();
+    applyMode();
+    setPaused(true);
     scoreEl.textContent = score;
-    statusEl.textContent = 'Игра началась';
-    pauseBtn.textContent = "⏸ Пауза";
-    hideTelegramMainButton();
+    levelEl.textContent = level;
+    lvlHint.textContent = `${applesThisLevel} / ${needForLevel}`;
+    lvlBar.style.width = `0%`;
+    statusEl.textContent = "Готов? Нажми Играть";
+    tg?.MainButton?.hide?.();
+    updateHUD();
+    draw();
   }
 
-  function step() {
-    if (!alive || paused) return;
+  function levelUp(){
+    level++;
+    applesThisLevel = 0;
+    levelEl.textContent = level;
+
+    // celebration
+    beep(740, 0.06, 'sine', 0.07);
+    beep(880, 0.06, 'sine', 0.07);
+    tg?.HapticFeedback?.notificationOccurred('success');
+
+    // Hazards: add some based on mode and level
+    const cfg = modes[mode] || modes.easy;
+    if (cfg.hazards){
+      const add = Math.min(3, 1 + Math.floor(level/3));
+      for (let i=0; i<add; i++) placeHazard();
+    }
+
+    applyMode();
+    statusEl.textContent = `🆙 Уровень ${level}!`;
+    updateHUD();
+  }
+
+  function updateHUD(){
+    scoreEl.textContent = score;
+    levelEl.textContent = level;
+    const pct = Math.min(1, applesThisLevel / needForLevel);
+    lvlHint.textContent = `${applesThisLevel} / ${needForLevel}`;
+    lvlBar.style.width = `${Math.floor(pct*100)}%`;
+    hazardsInfoEl.textContent = (modes[mode].hazards ? String(hazards.length) : "0");
+    speedEl.textContent = speed.toFixed(1) + "×";
+  }
+
+  function step(){
+    if (paused || !alive) return;
 
     dir = nextDir;
-
     const head = snake[0];
     const newHead = clampWrap({ x: head.x + dir.x, y: head.y + dir.y });
 
-    if (snake.some((s, i) => i !== 0 && equal(s, newHead))) {
-      alive = false;
-      setBestIfNeeded();
-      statusEl.textContent = '💥 Проиграл. Нажми R для рестарта';
-      showTelegramShare(score);
+    // Collision: self
+    if (snake.some((s,i)=> i!==0 && eq(s,newHead))){
+      gameOver("💥 Врезался в себя");
+      return;
+    }
+
+    // Collision: hazards (traps)
+    if (hazards.some(h => eq(h,newHead))){
+      gameOver("☠️ Ловушка!");
       return;
     }
 
     snake.unshift(newHead);
 
-    if (equal(newHead, food)) {
-      score++;
-      scoreEl.textContent = score;
-
+    // Eat food
+    if (eq(newHead, food)){
+      // score formula: base + level bonus
+      score += (1 + Math.floor(level/4));
+      applesThisLevel++;
+      beep(520, 0.05, 'triangle', 0.05);
       tg?.HapticFeedback?.impactOccurred('light');
 
-      if (score % 5 === 0) {
-        speed = Math.min(18, speed + 1);
-        tickMs = 1000 / speed;
+      // chance to add hazard (based on mode)
+      const cfg = modes[mode] || modes.easy;
+      if (cfg.hazards && Math.random() < cfg.hazardRate){
+        placeHazard();
       }
+
+      if (applesThisLevel >= needForLevel){
+        levelUp();
+      }
+
       placeFood();
+      updateHUD();
     } else {
       snake.pop();
     }
   }
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  function gameOver(reason){
+    alive = false;
+    setPaused(true);
+    setBestIfNeeded();
+    tg?.HapticFeedback?.notificationOccurred('error');
+    beep(180, 0.12, 'sawtooth', 0.04);
+    statusEl.textContent = `❌ Game Over: ${reason}. Нажми Заново`;
+    showSendScore(score);
+  }
 
-    // grid
+  // ===== Drawing =====
+  function drawGrid(col){
     ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = '#2a3550';
+    ctx.strokeStyle = col;
     ctx.lineWidth = 1;
-    for (let i = 0; i <= cells; i++) {
+    for (let i=0; i<=cells; i++){
       ctx.beginPath();
-      ctx.moveTo(i * size + 0.5, 0);
-      ctx.lineTo(i * size + 0.5, canvas.height);
+      ctx.moveTo(i*size+0.5, 0);
+      ctx.lineTo(i*size+0.5, canvas.height);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.moveTo(0, i * size + 0.5);
-      ctx.lineTo(canvas.width, i * size + 0.5);
+      ctx.moveTo(0, i*size+0.5);
+      ctx.lineTo(canvas.width, i*size+0.5);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
+  }
 
-    // food
-    ctx.fillStyle = '#ff4d6d';
-    ctx.fillRect(food.x * size + 3, food.y * size + 3, size - 6, size - 6);
+  function draw(){
+    const pal = skins[skin] || skins.mint;
 
-    // snake
-    for (let i = snake.length - 1; i >= 0; i--) {
-      const s = snake[i];
-      const isHead = i === 0;
+    ctx.clearRect(0,0,canvas.width, canvas.height);
 
-      ctx.fillStyle = isHead ? '#7cffb2' : '#32d583';
-      ctx.fillRect(s.x * size + 2, s.y * size + 2, size - 4, size - 4);
+    // background subtle
+    ctx.fillStyle = '#04060b';
+    ctx.fillRect(0,0,canvas.width, canvas.height);
 
-      if (isHead) {
-        ctx.fillStyle = '#06110b';
-        const ex = s.x * size, ey = s.y * size;
-        const gx = dir.x === 1 ? 13 : dir.x === -1 ? 7 : 10;
-        const gy = dir.y === 1 ? 13 : dir.y === -1 ? 7 : 10;
-        ctx.beginPath(); ctx.arc(ex + gx, ey + gy, 2.2, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(ex + (20 - gx), ey + (20 - gy), 2.2, 0, Math.PI * 2); ctx.fill();
+    drawGrid(pal.grid);
+
+    // hazards
+    if (modes[mode].hazards){
+      for (const h of hazards){
+        ctx.fillStyle = 'rgba(255, 77, 109, .85)';
+        ctx.fillRect(h.x*size+4, h.y*size+4, size-8, size-8);
+
+        // little cross
+        ctx.strokeStyle = 'rgba(0,0,0,.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(h.x*size+7, h.y*size+7);
+        ctx.lineTo(h.x*size+size-7, h.y*size+size-7);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(h.x*size+size-7, h.y*size+7);
+        ctx.lineTo(h.x*size+7, h.y*size+size-7);
+        ctx.stroke();
       }
     }
 
-    if (paused && alive) {
-      ctx.fillStyle = 'rgba(0,0,0,.55)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 26px system-ui, sans-serif';
+    // food
+    ctx.fillStyle = '#ff4d6d';
+    ctx.fillRect(food.x*size+3, food.y*size+3, size-6, size-6);
+
+    // snake
+    for (let i = snake.length-1; i>=0; i--){
+      const s = snake[i];
+      const isHead = i===0;
+
+      ctx.fillStyle = isHead ? pal.head : pal.body;
+      ctx.fillRect(s.x*size+2, s.y*size+2, size-4, size-4);
+
+      if (isHead){
+        // Eyes (direction-aware)
+        ctx.fillStyle = pal.eye;
+        const ex = s.x*size, ey = s.y*size;
+
+        const gx = dir.x === 1 ? 13 : dir.x === -1 ? 7 : 10;
+        const gy = dir.y === 1 ? 13 : dir.y === -1 ? 7 : 10;
+        ctx.beginPath(); ctx.arc(ex+gx, ey+gy, 2.2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex+(20-gx), ey+(20-gy), 2.2, 0, Math.PI*2); ctx.fill();
+      }
+    }
+
+    // paused overlay
+    if (paused && alive && startedOnce){
+      ctx.fillStyle = 'rgba(0,0,0,.50)';
+      ctx.fillRect(0,0,canvas.width, canvas.height);
+      ctx.fillStyle = '#fff';
       ctx.textAlign = 'center';
-      ctx.fillText('Пауза', canvas.width/2, canvas.height/2);
+      ctx.font = '800 26px system-ui, sans-serif';
+      ctx.fillText('Пауза', canvas.width/2, canvas.height/2 - 6);
       ctx.font = '14px system-ui, sans-serif';
-      ctx.fillText('Нажми Space, чтобы продолжить', canvas.width/2, canvas.height/2 + 24);
+      ctx.fillStyle = 'rgba(255,255,255,.9)';
+      ctx.fillText('Тап по полю или кнопка ▶️', canvas.width/2, canvas.height/2 + 18);
       ctx.textAlign = 'start';
     }
   }
 
-  // Controls: keyboard
+  // ===== UI wiring =====
+  syncModeUI();
+  syncSkinUI();
+  applyMode();
+  reset(true);
+
+  modeChips.addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    setMode(btn.dataset.mode);
+    beep(420, 0.04, 'sine', 0.04);
+  });
+
+  skinChips.addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    setSkin(btn.dataset.skin);
+    beep(520, 0.04, 'sine', 0.04);
+  });
+
+  soundBtn.addEventListener('click', () => {
+    setSound(!soundOn);
+    beep(600, 0.04, 'sine', 0.04);
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+
+  helpBtn.addEventListener('click', () => {
+    overlay.classList.add('show');
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+
+  closeHelp.addEventListener('click', () => {
+    overlay.classList.remove('show');
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('show');
+  });
+
+  playBtn.addEventListener('click', () => {
+    if (!alive) return;
+    startedOnce = true;
+    setPaused(false);
+    statusEl.textContent = "🔥 Поехали!";
+    tg?.HapticFeedback?.impactOccurred('medium');
+  });
+
+  pauseBtn.addEventListener('click', () => {
+    if (!alive) return;
+    startedOnce = true;
+    setPaused();
+    tg?.HapticFeedback?.impactOccurred('light');
+  });
+
+  restartBtn.addEventListener('click', () => {
+    reset(true);
+    startedOnce = true;
+    tg?.HapticFeedback?.impactOccurred('medium');
+  });
+
+  // Keyboard
   window.addEventListener('keydown', (e) => {
     const k = e.key;
 
-    if (k === ' ' || k === 'Spacebar') {
-      paused = !paused;
-      pauseBtn.textContent = paused ? "▶️ Продолжить" : "⏸ Пауза";
-      statusEl.textContent = paused ? '⏸ Пауза' : (alive ? '▶️ Игра продолжается' : statusEl.textContent);
+    if (k === ' ' || k === 'Spacebar'){
+      startedOnce = true;
+      setPaused();
       return;
     }
-
-    if (k.toLowerCase() === 'r') {
-      reset();
+    if (k.toLowerCase() === 'r'){
+      reset(true);
+      startedOnce = true;
       return;
     }
 
     const map = {
-      ArrowUp:    { x: 0, y: -1 },
-      ArrowDown:  { x: 0, y:  1 },
-      ArrowLeft:  { x: -1, y: 0 },
-      ArrowRight: { x:  1, y: 0 }
+      ArrowUp:    {x:0,y:-1},
+      ArrowDown:  {x:0,y: 1},
+      ArrowLeft:  {x:-1,y:0},
+      ArrowRight: {x: 1,y:0}
     };
     if (!map[k]) return;
-
-    const nd = map[k];
-    if (nd.x === -dir.x && nd.y === -dir.y) return;
-    nextDir = nd;
+    setDirection(map[k]);
   });
 
-  // Controls: buttons
-  pauseBtn.addEventListener('click', () => {
-    paused = !paused;
-    pauseBtn.textContent = paused ? "▶️ Продолжить" : "⏸ Пауза";
-    statusEl.textContent = paused ? '⏸ Пауза' : (alive ? '▶️ Игра продолжается' : statusEl.textContent);
+  // Touch: swipe on canvas (tap = pause)
+  let sx=0, sy=0, swiping=false;
+  canvas.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    sx = t.clientX; sy = t.clientY;
+    swiping = true;
+  }, { passive:true });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (!swiping) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+    swiping = false;
+
+    const absX = Math.abs(dx), absY = Math.abs(dy);
+    const threshold = 18;
+
+    startedOnce = true;
+
+    if (absX < threshold && absY < threshold){
+      if (alive) setPaused();
+      tg?.HapticFeedback?.impactOccurred('light');
+      return;
+    }
+
+    if (absX > absY){
+      setDirection(dx > 0 ? {x:1,y:0} : {x:-1,y:0});
+    } else {
+      setDirection(dy > 0 ? {x:0,y:1} : {x:0,y:-1});
+    }
     tg?.HapticFeedback?.impactOccurred('light');
-  });
-  restartBtn.addEventListener('click', () => {
-    reset();
-    tg?.HapticFeedback?.impactOccurred('medium');
+  }, { passive:true });
+
+  // D-pad buttons
+  document.querySelectorAll('.ctl').forEach(btn => {
+    const name = btn.getAttribute('data-dir');
+    const map = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+    const nd = map[name];
+
+    const press = (ev) => {
+      ev.preventDefault();
+      startedOnce = true;
+      setDirection(nd);
+      tg?.HapticFeedback?.impactOccurred('light');
+    };
+
+    btn.addEventListener('touchstart', press, { passive:false });
+    btn.addEventListener('click', press);
   });
 
-  // Loop
+  // Auto pause when hidden
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && alive && !paused){
+      setPaused(true);
+      statusEl.textContent = "⏸ Пауза (свернули игру)";
+    }
+  });
+
+  // ===== Game loop =====
   let lastTick = performance.now();
-  function loop(now) {
+  function loop(now){
     const dt = now - lastTick;
-    if (dt >= tickMs) {
+    if (dt >= tickMs){
       lastTick = now - (dt % tickMs);
       step();
     }
     draw();
     requestAnimationFrame(loop);
   }
-
-  reset();
   requestAnimationFrame(loop);
 })();
 </script>
